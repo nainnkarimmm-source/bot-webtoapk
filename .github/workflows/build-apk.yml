@@ -1,0 +1,84 @@
+name: Build WebToApk
+
+run-name: apk-${{ github.event.inputs.build_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: "ID unik dari bot (untuk tracking)"
+        required: true
+      app_name:
+        description: "Nama app yang dipaparkan"
+        required: true
+      package_name:
+        description: "Package/applicationId (contoh: com.toko.appabc1234)"
+        required: true
+      mode:
+        description: "url atau html"
+        required: true
+        default: "url"
+      target_url:
+        description: "URL yang dimuatkan (kalau mode=url)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Inject konfigurasi app (nama, package, target)
+        run: |
+          cd android-template
+          APP_NAME="${{ github.event.inputs.app_name }}"
+          PACKAGE_NAME="${{ github.event.inputs.package_name }}"
+          MODE="${{ github.event.inputs.mode }}"
+          TARGET_URL="${{ github.event.inputs.target_url }}"
+
+          # applicationId (identiti app di peranti, TIDAK sama dengan namespace java package internal)
+          sed -i "s#__PACKAGE_NAME__#${PACKAGE_NAME}#g" app/build.gradle
+
+          # Nama app + mod (url/asset) + target
+          sed -i "s#__APP_NAME__#${APP_NAME}#g" app/src/main/res/values/strings.xml
+          sed -i "s#__WEBVIEW_MODE__#${MODE}#g" app/src/main/res/values/strings.xml
+
+          if [ "$MODE" = "html" ]; then
+            sed -i "s#__WEBVIEW_TARGET__#index.html#g" app/src/main/res/values/strings.xml
+            mkdir -p app/src/main/assets
+            cp "../pending-builds/${{ github.event.inputs.build_id }}/index.html" app/src/main/assets/index.html
+          else
+            sed -i "s#__WEBVIEW_TARGET__#${TARGET_URL}#g" app/src/main/res/values/strings.xml
+          fi
+
+      - name: Build APK (debug)
+        run: |
+          cd android-template
+          gradle assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp android-template/app/build/outputs/apk/debug/app-debug.apk \
+             "out/${{ github.event.inputs.app_name }}-${{ github.event.inputs.build_id }}.apk"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ github.event.inputs.build_id }}
+          path: out/*.apk
+          retention-days: 1
