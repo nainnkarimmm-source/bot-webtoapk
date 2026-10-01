@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <string name="app_name">__APP_NAME__</string>
+
+    <string name="webview_mode">__WEBVIEW_MODE__</string>
+
+    <string name="webview_target">__WEBVIEW_TARGET__</string>
+
+</resources>
